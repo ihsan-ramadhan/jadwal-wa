@@ -1,0 +1,44 @@
+name: WhatsApp Automated Schedule Sender
+
+on:
+  schedule:
+    # Jalan setiap hari jam 20:00 WIB (13:00 UTC)
+    - cron: "0 13 * * *"
+  workflow_dispatch:
+
+jobs:
+  kirim_jadwal:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install System Dependencies for Puppeteer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libgbm1 libasound2 libpangocairo-1.0-0 libxss1 libgtk-3-0
+
+      - name: Cache WhatsApp Session
+        uses: actions/cache@v4
+        with:
+          path: .wwebjs_auth
+          key: ${{ runner.os }}-wwebjs-auth-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-wwebjs-auth-
+
+      - name: Run Jadwal Sender
+        env:
+          GROUP_ID_ASRAMA: ${{ secrets.GROUP_ID_ASRAMA }}
+          GROUP_ID_SQUAD: ${{ secrets.GROUP_ID_SQUAD }}
+
+        run: node kirim_jadwal.js --test

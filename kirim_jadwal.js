@@ -422,8 +422,20 @@ function attachEvents(c) {
     logger.ok("WhatsApp berhasil terhubung!");
     writeStatus({ wa_status: "connected", last_connected: new Date().toISOString() });
 
-    if (process.argv.includes("--test"))        kirimJadwal(c);
-    if (process.argv.includes("--list-groups")) listGrup(c);
+    if (process.argv.includes("--test")) {
+      logger.info("Jalan di mode --test (GitHub Actions mode)..");
+      kirimJadwal(c).then(async () => {
+        logger.info("Pengiriman tes selesai, menutup client...");
+        await new Promise(r => setTimeout(r, 5000)); // Tunggu pesan terkirim
+        try { await c.destroy(); } catch {}
+        process.exit(0);
+      }).catch(err => {
+        logger.error("Error di mode --test:", err);
+        process.exit(1);
+      });
+    } else if (process.argv.includes("--list-groups")) {
+      listGrup(c);
+    }
   });
 
   c.on("auth_failure", () => {
