@@ -6,7 +6,11 @@ const XLSX    = require("xlsx");
 const cron    = require("node-cron");
 const fs      = require("fs");
 const path    = require("path");
+const { execSync } = require("child_process");
 const logger  = require("./logger");
+
+// Jika dalam 2 menit belum ready, trigger reconnect
+const INIT_TIMEOUT_MS = 2 * 60 * 1000; // 2 menit
 
 // ── Konfigurasi ──────────────────────────────────────────────────────────────
 const PATH_EXCEL = "./jadwal.xlsx";
@@ -456,8 +460,30 @@ function triggerReconnect(reason) {
     try {
       // Destroy client lama sepenuhnya sebelum buat baru
       try { await client.destroy(); } catch { /* abaikan */ }
+
+      // Force-kill semua proses Chrome yang mungkin tersisa
+      try {
+        execSync('taskkill /F /IM chrome.exe /T 2>nul', { stdio: 'ignore' });
+        logger.info("Proses Chrome lama sudah dibersihkan.");
+      } catch { /* abaikan jika tidak ada */ }
+
+      // Tunggu sebentar agar port/socket sempat bebas
+      await new Promise(r => setTimeout(r, 3000));
+
       client = createClient();
       attachEvents(client);
+
+      // Pasang timeout: jika tidak ready dalam INIT_TIMEOUT_MS, trigger reconnect
+      let initTimeout = setTimeout(() => {
+        logger.warn(`Initialize timeout (>${INIT_TIMEOUT_MS/1000}s) — memulai reconnect...`);
+        writeStatus({ wa_status: "init_timeout" });
+        isReconnecting = false;
+        triggerReconnect("init-timeout");
+      }, INIT_TIMEOUT_MS);
+
+      client.once("ready", () => clearTimeout(initTimeout));
+      client.once("auth_failure", () => clearTimeout(initTimeout));
+
       await client.initialize();
     } catch (err) {
       logger.error("Gagal reinitialize client:", err.message);
@@ -483,4 +509,15 @@ logger.info(`File Excel     : ${PATH_EXCEL}`);
 logger.info("Tips: node kirim_jadwal.js --list-groups | --test");
 
 attachEvents(client);
+
+// Pasang timeout awal: jika tidak ready dalam INIT_TIMEOUT_MS, trigger reconnect
+let startupTimeout = setTimeout(() => {
+  logger.warn(`Initialize timeout saat startup (>${INIT_TIMEOUT_MS/1000}s) — memulai reconnect...`);
+  writeStatus({ wa_status: "init_timeout" });
+  triggerReconnect("startup-timeout");
+}, INIT_TIMEOUT_MS);
+
+client.once("ready", () => clearTimeout(startupTimeout));
+client.once("auth_failure", () => clearTimeout(startupTimeout));
+
 client.initialize();
