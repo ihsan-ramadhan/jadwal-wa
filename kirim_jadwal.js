@@ -1,5 +1,6 @@
 'use strict';
 
+require('dotenv').config();
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode  = require("qrcode-terminal");
 const XLSX    = require("xlsx");
@@ -15,8 +16,8 @@ const INIT_TIMEOUT_MS = 2 * 60 * 1000; // 2 menit
 // ── Konfigurasi ──────────────────────────────────────────────────────────────
 const PATH_EXCEL = "./jadwal.xlsx";
 
-const GROUP_ID_ASRAMA = "XXXXXXXXXX@g.us";
-const GROUP_ID_SQUAD  = "XXXXXXXXXX@g.us";
+const GROUP_ID_ASRAMA = process.env.GROUP_ID_ASRAMA || "XXXXXXXXXX@g.us";
+const GROUP_ID_SQUAD  = process.env.GROUP_ID_SQUAD || "XXXXXXXXXX@g.us";
 
 const JAM_KIRIM   = 20;
 const MENIT_KIRIM = 0;
