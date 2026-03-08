@@ -442,14 +442,17 @@ async function connectToWhatsApp() {
 
       if (process.argv.includes("--test")) {
         logger.info("Jalan di mode --test (GitHub Actions mode)..");
-        kirimJadwal(sock).then(async () => {
-          logger.info("Pengiriman tes selesai, exit 0.");
-          await new Promise(r => setTimeout(r, 3000));
-          process.exit(0);
-        }).catch(err => {
-          logger.error("Error di mode --test:", err);
-          process.exit(1);
-        });
+        logger.info("Menunggu sebentar untuk sinkronisasi enkripsi Multi-Device...");
+        setTimeout(() => {
+          kirimJadwal(sock).then(async () => {
+             logger.info("Pengiriman tes selesai, exit 0.");
+             await new Promise(r => setTimeout(r, 10000));
+             process.exit(0);
+          }).catch(err => {
+             logger.error("Error di mode --test:", err);
+             process.exit(1);
+          });
+        }, 8000);
       }
     }
   });
