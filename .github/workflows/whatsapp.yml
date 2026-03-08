@@ -32,9 +32,13 @@ jobs:
             ${{ runner.os }}-wa-session-
 
       - name: Restore WhatsApp Session from Secrets (Fallback)
-        if: steps.restore-session.outputs.cache-hit != 'true'
         run: |
-          echo "Cache tidak ditemukan, memuat dari Secrets..."
+          if [ -f "auth_info_baileys/creds.json" ]; then
+            echo "✅ Session berhasil direstore dari Cache, melewati fallback ke Secrets."
+            exit 0
+          fi
+
+          echo "⚠️ Cache tidak ditemukan, memuat dari Secrets..."
           cat << 'EOF' > secrets.json
           ${{ toJson(secrets) }}
           EOF
@@ -46,7 +50,7 @@ jobs:
 
           mkdir -p auth_info_baileys
           cat auth_base64.txt | tr -d '\n\r ' | base64 -d > auth.zip
-          unzip auth.zip -d auth_info_baileys/
+          unzip -o auth.zip -d auth_info_baileys/
           rm auth.zip auth_base64.txt
 
       - name: Restore Jadwal Excel

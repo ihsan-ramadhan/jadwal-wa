@@ -447,6 +447,7 @@ async function connectToWhatsApp() {
           kirimJadwal(sock).then(async () => {
              logger.info("Pengiriman tes selesai. Menjaga koneksi tetap hidup selama 30 detik untuk sinkronisasi balik (supaya pesan terbaca di HP pengirim)...");
              await new Promise(r => setTimeout(r, 30000));
+             try { sock.end(undefined); } catch (e) {}
              process.exit(0);
           }).catch(err => {
              logger.error("Error di mode --test:", err);
