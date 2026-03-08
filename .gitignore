@@ -1,9 +1,8 @@
 # Dependencies
 node_modules/
 
-# WhatsApp session — jangan di-commit, berisi data login pribadi
-.wwebjs_auth/
-.wwebjs_cache/
+# WhatsApp session Baileys
+auth_info_baileys/
 
 # Data jadwal — berisi nama-nama pribadi
 jadwal.xlsx

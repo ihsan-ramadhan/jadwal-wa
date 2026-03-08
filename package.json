@@ -8,15 +8,22 @@
     "test": "node kirim_jadwal.js --test",
     "status": "node status.js"
   },
-  "keywords": ["whatsapp", "bot", "scheduler", "whatsapp-web.js", "node-cron"],
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "scheduler",
+    "whatsapp-web.js",
+    "node-cron"
+  ],
   "author": "Ihsan",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "dotenv": "^17.3.1",
     "node-cron": "^4.2.1",
+    "pino": "^10.3.1",
     "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.34.6",
     "xlsx": "^0.18.5"
   }
 }
