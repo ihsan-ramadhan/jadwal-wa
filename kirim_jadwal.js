@@ -226,17 +226,21 @@ function buatPesanHarian(jadwal, kontak, tanggalBesok) {
     .map(r => r.id).filter(Boolean);
 
   const text =
-`[Jadwal Adzan]
-${formatTanggal(tanggalBesok)}
-* Shubuh: ${subuh.teks}
-- Dzuhur: ${dhuhur.teks}
-- Ashar: ${ashar.teks}
-- Maghrib: ${adzMaghrib.teks}
-- Isya': ${adzIsya.teks}
+`📋 *JADWAL PETUGAS MASJID LH* 📋
+🗓️ ${formatTanggal(tanggalBesok)}
 
-[Jadwal Imam]
-- Maghrib: ${imamMaghrib.teks}
-- Isya': ${imamIsya.teks}`;
+🎙️ *JADWAL ADZAN*
+${subuh.teks !== '-' ? '🌅' : '▪️'} Shubuh  : ${subuh.teks}
+${dhuhur.teks !== '-' ? '☀️' : '▪️'} Dzuhur  : ${dhuhur.teks}
+${ashar.teks !== '-' ? '🌤️' : '▪️'} Ashar   : ${ashar.teks}
+${adzMaghrib.teks !== '-' ? '🌇' : '▪️'} Maghrib : ${adzMaghrib.teks}
+${adzIsya.teks !== '-' ? '🌌' : '▪️'} Isya'   : ${adzIsya.teks}
+
+👳 *JADWAL IMAM*
+${imamMaghrib.teks !== '-' ? '🌇' : '▪️'} Maghrib : ${imamMaghrib.teks}
+${imamIsya.teks !== '-' ? '🌌' : '▪️'} Isya'   : ${imamIsya.teks}
+
+Mohon kehadirannya tepat waktu, bila ada yang berhalangan boleh konfirmasi. Terima kasih! 🙏`;
 
   return { text, mentions };
 }
@@ -268,23 +272,33 @@ function buatPesanJumat(kontak, tanggalBesok, semuaNama, listImam, posisiJumatan
   ].map(r => r.id).filter(Boolean);
 
   const barisPosisi = Object.entries(posisiResolved)
-    .map(([pos, orang]) => `* *${pos}* ${orang.map(o => o.teks).join(" ")}`)
-    .join("\n");
+    .map(([pos, orang]) => `🔹 *${pos}*\n   ${orang.map(o => o.teks).join("\n   ")}`)
+    .join("\n\n");
 
   const text =
-`*[Petugas Jumatan ${formatTanggalPendek(tanggalBesok)}]*
-Muadzin ${rMuadzin.teks}
-Protokol+Operator ${rProtokol.teks}
-*Adzan*
-Shubuh ${rSubuh.teks}
-Ashar ${rAshar.teks}
-Maghrib ${rMaghrib.teks}
-Isya' ${rIsya.teks}
-*Imam*
-Maghrib ${rImamMaghrib.teks}
-Isya' ${rImamIsya.teks}
-*Posisi Jumatan*
-${barisPosisi}`;
+`🕌 *PETUGAS SHOLAT JUM'AT MASJID LH* 🕌
+🗓️ ${formatTanggal(tanggalBesok)}
+
+📢 *Muadzin*
+▸ ${rMuadzin.teks}
+
+🎤 *Protokol + Operator*
+▸ ${rProtokol.teks}
+
+🎙️ *Jadwal Adzan*
+🌅 Shubuh  : ${rSubuh.teks}
+🌤️ Ashar   : ${rAshar.teks}
+🌇 Maghrib : ${rMaghrib.teks}
+🌌 Isya'   : ${rIsya.teks}
+
+👳 *Jadwal Imam*
+🌇 Maghrib : ${rImamMaghrib.teks}
+🌌 Isya'   : ${rImamIsya.teks}
+
+📍 *Posisi Jumatan*
+${barisPosisi}
+
+Mohon kesiapannya, bila ada yang berhalangan boleh konfirmasi. Terima kasih! 🙏`;
 
   return { text, mentions };
 }
