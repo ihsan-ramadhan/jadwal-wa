@@ -32,6 +32,8 @@ jobs:
           echo "${{ secrets.WA_AUTH_5 }}" >> auth_base64.txt
           echo "${{ secrets.WA_AUTH_6 }}" >> auth_base64.txt
           echo "${{ secrets.WA_AUTH_7 }}" >> auth_base64.txt
+          echo "${{ secrets.WA_AUTH_8 }}" >> auth_base64.txt
+          echo "${{ secrets.WA_AUTH_9 }}" >> auth_base64.txt
 
           mkdir -p auth_info_baileys
           cat auth_base64.txt | tr -d '\n\r ' | base64 -d > auth.zip
