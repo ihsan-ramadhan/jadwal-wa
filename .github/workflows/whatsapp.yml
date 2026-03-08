@@ -46,5 +46,6 @@ jobs:
         env:
           GROUP_ID_ASRAMA: ${{ secrets.GROUP_ID_ASRAMA }}
           GROUP_ID_SQUAD: ${{ secrets.GROUP_ID_SQUAD }}
+          TZ: "Asia/Jakarta"
 
         run: node kirim_jadwal.js --test
