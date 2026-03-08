@@ -28,13 +28,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libgbm1 libasound2 libpangocairo-1.0-0 libxss1 libgtk-3-0
 
-      - name: Cache WhatsApp Session
-        uses: actions/cache@v4
-        with:
-          path: .wwebjs_auth
-          key: ${{ runner.os }}-wwebjs-auth-${{ github.run_id }}
-          restore-keys: |
-            ${{ runner.os }}-wwebjs-auth-
+      - name: Restore WhatsApp Session from 7 Secrets
+        run: |
+          echo "${{ secrets.WA_AUTH_1 }}" > auth_base64.txt
+          echo "${{ secrets.WA_AUTH_2 }}" >> auth_base64.txt
+          echo "${{ secrets.WA_AUTH_3 }}" >> auth_base64.txt
+          echo "${{ secrets.WA_AUTH_4 }}" >> auth_base64.txt
+          echo "${{ secrets.WA_AUTH_5 }}" >> auth_base64.txt
+          echo "${{ secrets.WA_AUTH_6 }}" >> auth_base64.txt
+          echo "${{ secrets.WA_AUTH_7 }}" >> auth_base64.txt
+
+          mkdir -p auth_info_baileys
+          cat auth_base64.txt | tr -d '\n\r ' | base64 -d > auth.zip
+          unzip auth.zip -d auth_info_baileys/
+          rm auth.zip auth_base64.txt
 
       - name: Run Jadwal Sender
         env:

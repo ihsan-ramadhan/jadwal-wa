@@ -17,3 +17,9 @@ status.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Auth
+auth.zip
+auth_base64.txt
+auth_secret_*.txt
+split_b64.js
