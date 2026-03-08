@@ -2,8 +2,7 @@ name: WhatsApp Automated Schedule Sender
 
 on:
   schedule:
-    # Jalan setiap hari jam 20:00 WIB (13:00 UTC)
-    - cron: "0 13 * * *"
+    - cron: "15 12 * * *"
   workflow_dispatch:
 
 jobs:
