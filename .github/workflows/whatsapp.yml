@@ -23,17 +23,14 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Restore WhatsApp Session from 7 Secrets
+      - name: Restore WhatsApp Session from Secrets
+        env:
+          # Kita masukkan GitHub secrets berawalan WA_AUTH_ agar terbaca Node/Bash
+          SECRETS_CONTEXT: ${{ toJson(secrets) }}
         run: |
-          echo "${{ secrets.WA_AUTH_1 }}" > auth_base64.txt
-          echo "${{ secrets.WA_AUTH_2 }}" >> auth_base64.txt
-          echo "${{ secrets.WA_AUTH_3 }}" >> auth_base64.txt
-          echo "${{ secrets.WA_AUTH_4 }}" >> auth_base64.txt
-          echo "${{ secrets.WA_AUTH_5 }}" >> auth_base64.txt
-          echo "${{ secrets.WA_AUTH_6 }}" >> auth_base64.txt
-          echo "${{ secrets.WA_AUTH_7 }}" >> auth_base64.txt
-          echo "${{ secrets.WA_AUTH_8 }}" >> auth_base64.txt
-          echo "${{ secrets.WA_AUTH_9 }}" >> auth_base64.txt
+          # Ambil semua secret yang berawalan WA_AUTH_, urutkan berdasarkan angkanya,
+          # lalu gabungkan isinya ke auth_base64.txt
+          echo "$SECRETS_CONTEXT" | jq -r 'to_entries | map(select(.key | test("^WA_AUTH_\\d+$"))) | sort_by(.key | match("\\d+") | .string | tonumber) | .[].value' > auth_base64.txt
 
           mkdir -p auth_info_baileys
           cat auth_base64.txt | tr -d '\n\r ' | base64 -d > auth.zip
