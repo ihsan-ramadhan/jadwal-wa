@@ -21,7 +21,8 @@ jadwal-wa/
 ├── logger.js                   # Modul logging ke file & console
 ├── status.js                   # CLI untuk cek status terkini
 ├── status.json                 # State real-time (auto-update oleh skrip)
-├── jadwal.xlsx                 # Data jadwal (dibaca lokal)
+├── jadwal.example.xlsx         # Contoh file format jadwal (silakan ganti nama)
+├── jadwal.xlsx                 # Data jadwal aslimu (di-ignore git)
 ├── .env                        # File env lokal berisi GROUP ID
 ├── .github/workflows/          # Konfigurasi GitHub Actions
 └── auth_info_baileys/          # Session WhatsApp autentikasi (di-ignore)
@@ -39,6 +40,7 @@ jadwal-wa/
    GROUP_ID_ASRAMA=123xxxxxx@g.us
    GROUP_ID_SQUAD=987xxxxxx@g.us
    ```
+4. Copy **`jadwal.example.xlsx`** ke **`jadwal.xlsx`** dan isikan nomor HP yang benar (file ini otomatis tidak di-push ke GitHub untuk keamanan).
 
 ## Cara Menjalankan (Lokal)
 
@@ -91,9 +93,22 @@ Ukuran sesi Baileys terlalu besar untuk 1 rahasia Github, sehingga kita harus me
    ```
 3. Buka tab **Settings > Secrets and variables > Actions** di repositori GitHub milikmu.
 4. Buat **7 buah rahasia**: `WA_AUTH_1` sampai `WA_AUTH_7` (paste masing-masing ke 7 rahasia tersebut dari file _auth_secret_N.txt_ yang barusan ter-generate).
-5. (Jangan lupa tambahkan juga `GROUP_ID_ASRAMA` dan `GROUP_ID_SQUAD` di menu Secrets yang sama!)
 
-### 2. Selesai!
+### 2. Siapkan Secret untuk File Excel (Agar Private)
+
+Karena keamanan nomor HP teman-temanmu itu penting, file `jadwal.xlsx` **dilarang keras** di-upload langsung. Kita pakai cara rahasia juga:
+
+1. Konversi Excel menjadi teks Base64 via PowerShell:
+   ```powershell
+   $pathExcel = Join-Path (Get-Location) "jadwal.xlsx"
+   $pathB64 = Join-Path (Get-Location) "excel_base64.txt"
+   [Convert]::ToBase64String([IO.File]::ReadAllBytes($pathExcel)) | Out-File $pathB64 -Encoding utf8
+   ```
+2. Buka `excel_base64.txt`, blok semua isinya lalu _copy_.
+3. Di tab Github Secrets yang sama seperti tadi, buat rahasia baru bernama `JADWAL_EXCEL_B64` dan paste isinya ke situ.
+4. (Jangan lupa tambahkan rahasia `GROUP_ID_ASRAMA` dan `GROUP_ID_SQUAD` juga!).
+
+### 3. Selesai!
 
 Setiap hari pada jam 13:00 UTC (20:00 WIB), GitHub Actions akan membangun sebuah mesin virtual cloud gratis, menyusun kembali 7 rahasia ZIP tadi menjadi sesi login WA, lalu mengirim skrip jadwalmu ke grup secara otomatis, lalu menghancurkan servernya kembali.
 
