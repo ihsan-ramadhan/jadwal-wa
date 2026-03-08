@@ -410,6 +410,22 @@ async function connectToWhatsApp() {
       logger.ok("WhatsApp berhasil terhubung (Baileys)!");
       writeStatus({ wa_status: "connected", last_connected: new Date().toISOString() });
 
+      if (process.argv.some(arg => arg.includes("--list-groups"))) {
+        logger.info("Mengambil daftar grup...");
+        sock.groupFetchAllParticipating().then(groups => {
+          logger.info("=== DAFTAR GRUP ===");
+          for (const id in groups) {
+            logger.info(`ID: ${id} | Nama: ${groups[id].subject}`);
+          }
+          logger.info("===================");
+          process.exit(0);
+        }).catch(err => {
+          logger.error("Gagal mengambil daftar grup:", err);
+          process.exit(1);
+        });
+        return;
+      }
+
       if (process.argv.includes("--test")) {
         logger.info("Jalan di mode --test (GitHub Actions mode)..");
         kirimJadwal(sock).then(async () => {
