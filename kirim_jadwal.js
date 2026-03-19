@@ -226,21 +226,20 @@ function buatPesanHarian(jadwal, kontak, tanggalBesok) {
     .map(r => r.id).filter(Boolean);
 
   const text =
-`📋 *JADWAL PETUGAS MASJID LH* 📋
-🗓️ ${formatTanggal(tanggalBesok)}
+`*Jadwal Petugas Masjid LH - ${formatTanggal(tanggalBesok)}*
 
-🎙️ *JADWAL ADZAN*
-${subuh.teks !== '-' ? '🌅' : '▪️'} Shubuh  : ${subuh.teks}
-${dhuhur.teks !== '-' ? '☀️' : '▪️'} Dzuhur  : ${dhuhur.teks}
-${ashar.teks !== '-' ? '🌤️' : '▪️'} Ashar   : ${ashar.teks}
-${adzMaghrib.teks !== '-' ? '🌇' : '▪️'} Maghrib : ${adzMaghrib.teks}
-${adzIsya.teks !== '-' ? '🌌' : '▪️'} Isya'   : ${adzIsya.teks}
+*Jadwal Adzan:*
+Subuh: ${subuh.teks}
+Dzuhur: ${dhuhur.teks}
+Ashar: ${ashar.teks}
+Maghrib: ${adzMaghrib.teks}
+Isya: ${adzIsya.teks}
 
-👳 *JADWAL IMAM*
-${imamMaghrib.teks !== '-' ? '🌇' : '▪️'} Maghrib : ${imamMaghrib.teks}
-${imamIsya.teks !== '-' ? '🌌' : '▪️'} Isya'   : ${imamIsya.teks}
+*Jadwal Imam:*
+Maghrib: ${imamMaghrib.teks}
+Isya: ${imamIsya.teks}
 
-Mohon kehadirannya tepat waktu, bila ada yang berhalangan boleh konfirmasi. Terima kasih! 🙏`;
+Mohon kehadirannya tepat waktu ya. Kalau ada yang berhalangan bisa langsung info di sini. Makasih!`;
 
   return { text, mentions };
 }
@@ -272,33 +271,30 @@ function buatPesanJumat(kontak, tanggalBesok, semuaNama, listImam, posisiJumatan
   ].map(r => r.id).filter(Boolean);
 
   const barisPosisi = Object.entries(posisiResolved)
-    .map(([pos, orang]) => `🔹 *${pos}*\n   ${orang.map(o => o.teks).join("\n   ")}`)
-    .join("\n\n");
+    .map(([pos, orang]) => `${pos}: ${orang.map(o => o.teks).join(", ")}`)
+    .join("\n");
 
   const text =
-`🕌 *PETUGAS SHOLAT JUM'AT MASJID LH* 🕌
-🗓️ ${formatTanggal(tanggalBesok)}
+`*Petugas Sholat Jumat - ${formatTanggal(tanggalBesok)}*
 
-📢 *Muadzin*
-▸ ${rMuadzin.teks}
+*Petugas Utama:*
+Muadzin: ${rMuadzin.teks}
+Protokol: ${rProtokol.teks}
 
-🎤 *Protokol + Operator*
-▸ ${rProtokol.teks}
+*Jadwal Adzan:*
+Subuh: ${rSubuh.teks}
+Ashar: ${rAshar.teks}
+Maghrib: ${rMaghrib.teks}
+Isya: ${rIsya.teks}
 
-🎙️ *Jadwal Adzan*
-🌅 Shubuh  : ${rSubuh.teks}
-🌤️ Ashar   : ${rAshar.teks}
-🌇 Maghrib : ${rMaghrib.teks}
-🌌 Isya'   : ${rIsya.teks}
+*Jadwal Imam:*
+Maghrib: ${rImamMaghrib.teks}
+Isya: ${rImamIsya.teks}
 
-👳 *Jadwal Imam*
-🌇 Maghrib : ${rImamMaghrib.teks}
-🌌 Isya'   : ${rImamIsya.teks}
-
-📍 *Posisi Jumatan*
+*Posisi Jumatan:*
 ${barisPosisi}
 
-Mohon kesiapannya, bila ada yang berhalangan boleh konfirmasi. Terima kasih! 🙏`;
+Mohon kesiapannya ya teman-teman. Makasih!`;
 
   return { text, mentions };
 }
@@ -412,8 +408,8 @@ async function connectToWhatsApp() {
           reconnectCount++;
           setTimeout(connectToWhatsApp, 5000 * reconnectCount);
         } else {
-          logger.error(`Batas reconnect (${MAX_RECONNECT}x) tercapai.`);
-          if (process.argv.includes("--test")) process.exit(1);
+          logger.error(`Batas reconnect (${MAX_RECONNECT}x) tercapai. Exiting process.`);
+          process.exit(1);
         }
       } else {
         logger.error("Sesi ter-logout. Hapus folder 'auth_info_baileys' dan scan QR lagi.");
