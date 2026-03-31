@@ -4,9 +4,8 @@ const fs   = require('fs');
 const path = require('path');
 
 const LOG_DIR     = path.join(__dirname, 'logs');
-const MAX_LOG_AGE = 30; // hari
+const MAX_LOG_AGE = 30;
 
-// Buat folder logs jika belum ada
 if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
 
 function timestamp() {
@@ -28,7 +27,7 @@ function todayLogFile() {
 function writeToFile(line) {
   try {
     fs.appendFileSync(todayLogFile(), line + '\n', 'utf8');
-  } catch { /* jangan crash hanya karena log gagal */ }
+  } catch {}
 }
 
 function format(level, msg) {
@@ -41,7 +40,6 @@ function log(level, msg, extra) {
   writeToFile(line);
 }
 
-// Bersihkan log lama (> MAX_LOG_AGE hari) — dijalankan sekali saat startup
 function cleanOldLogs() {
   try {
     const cutoff = Date.now() - MAX_LOG_AGE * 24 * 60 * 60 * 1000;
@@ -52,7 +50,7 @@ function cleanOldLogs() {
         const mtime = fs.statSync(full).mtimeMs;
         if (mtime < cutoff) fs.unlinkSync(full);
       });
-  } catch { /* abaikan */ }
+  } catch {}
 }
 
 cleanOldLogs();

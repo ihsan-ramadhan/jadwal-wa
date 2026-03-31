@@ -16,7 +16,6 @@ const fs      = require("fs");
 const path    = require("path");
 const logger  = require("./logger");
 
-// ── Konfigurasi ──────────────────────────────────────────────────────────────
 const PATH_EXCEL = "./jadwal.xlsx";
 
 const GROUP_ID_ASRAMA = process.env.GROUP_ID_ASRAMA || "XXXXXXXXXX@g.us";
@@ -32,7 +31,6 @@ const SHEET_JUMATAN       = "Jumatan";
 
 const MAX_RECONNECT = 5;
 
-// ── Status tracking ───────────────────────────────────────────────────────────
 const STATUS_FILE = path.join(__dirname, "status.json");
 
 function readStatus() {
@@ -49,10 +47,8 @@ function writeStatus(patch) {
   }
 }
 
-// Init status saat startup
 writeStatus({ wa_status: "initializing", uptime_start: new Date().toISOString() });
 
-// ── Helper ───────────────────────────────────────────────────────────────────
 function getNamaHari(tanggal) {
   return ["Minggu","Senin","Selasa","Rabu","Kamis","Jum'at","Sabtu"][tanggal.getDay()];
 }
@@ -79,7 +75,6 @@ function pilihRandom(arr, n) {
   return [terpilih, copy];
 }
 
-// ── Baca Excel ────────────────────────────────────────────────────────────────
 function bacaExcel() {
   const wb = XLSX.readFile(PATH_EXCEL);
 
@@ -152,7 +147,6 @@ function bacaPosisiJumatan(wb) {
   return posisi;
 }
 
-// ── Generate Jumat ────────────────────────────────────────────────────────────
 function generateJumat(semuaNama, listImam, posisiJumatan) {
   const sudahBertugas = new Set();
 
@@ -197,7 +191,6 @@ function generateJumat(semuaNama, listImam, posisiJumatan) {
   return { muadzin, protokol, adzanResult, imamMaghrib, imamIsya, posisiResult };
 }
 
-// ── Resolve kontak ────────────────────────────────────────────────────────────
 function resolveContact(kontak, namaExcel) {
   if (!namaExcel || namaExcel === "-") return { teks: namaExcel || "-", id: null };
   const info = kontak[namaExcel];
@@ -206,7 +199,6 @@ function resolveContact(kontak, namaExcel) {
   return { teks: `@${info.nomor}`, id: jid };
 }
 
-// ── Buat pesan ────────────────────────────────────────────────────────────────
 function buatPesanHarian(jadwal, kontak, tanggalBesok) {
   const namaHari = getNamaHari(tanggalBesok);
   const data     = jadwal[namaHari];
@@ -226,7 +218,7 @@ function buatPesanHarian(jadwal, kontak, tanggalBesok) {
     .map(r => r.id).filter(Boolean);
 
   const text =
-`*Jadwal Petugas Masjid LH - ${formatTanggal(tanggalBesok)}*
+`*[Jadwal Petugas Masjid LH - ${formatTanggal(tanggalBesok)}]*
 
 *Jadwal Adzan:*
 Subuh: ${subuh.teks}
@@ -239,7 +231,7 @@ Isya: ${adzIsya.teks}
 Maghrib: ${imamMaghrib.teks}
 Isya: ${imamIsya.teks}
 
-Mohon kehadirannya tepat waktu ya. Kalau ada yang berhalangan bisa langsung info di sini. Makasih!`;
+Mohon kehadirannya tepat waktu, bila ada yang berhalangan boleh konfirmasi. Terima kasih! 🙏`;
 
   return { text, mentions };
 }
@@ -275,7 +267,7 @@ function buatPesanJumat(kontak, tanggalBesok, semuaNama, listImam, posisiJumatan
     .join("\n");
 
   const text =
-`*Petugas Sholat Jumat - ${formatTanggal(tanggalBesok)}*
+`*[Jadwal Petugas Masjid LH - ${formatTanggal(tanggalBesok)}]*
 
 *Petugas Utama:*
 Muadzin: ${rMuadzin.teks}
@@ -294,12 +286,11 @@ Isya: ${rImamIsya.teks}
 *Posisi Jumatan:*
 ${barisPosisi}
 
-Mohon kesiapannya ya teman-teman. Makasih!`;
+Mohon kesiapannya ya. Terima kasih! 🙏`;
 
   return { text, mentions };
 }
 
-// ── Kirim jadwal ─────────────────────────────────────────────────────────────
 async function kirimJadwal(sock) {
   const sentGroups = [];
   const sendTime   = new Date().toISOString();
@@ -369,7 +360,6 @@ async function kirimJadwal(sock) {
   }
 }
 
-// ── WhatsApp Client ────────────────────────────────────────────────
 let reconnectCount = 0;
 let sock;
 
@@ -383,7 +373,7 @@ async function connectToWhatsApp() {
     version,
     auth: state,
     printQRInTerminal: false,
-    logger: pino({ level: 'silent' }), // Kembalikan ke silent agar rapi
+    logger: pino({ level: 'silent' }),
     browser: Browsers.macOS('Desktop'),
   });
 
@@ -454,7 +444,6 @@ async function connectToWhatsApp() {
   });
 }
 
-// ── Startup & Cron ────────────────────────────────────────────────────────────
 logger.info(`Kirim otomatis : setiap jam ${JAM_KIRIM}:${String(MENIT_KIRIM).padStart(2,"0")} WIB`);
 logger.info(`File Excel     : ${PATH_EXCEL}`);
 logger.info("Tips: node kirim_jadwal.js --test");

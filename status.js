@@ -6,7 +6,6 @@ const path = require('path');
 const STATUS_FILE = path.join(__dirname, 'status.json');
 const LOG_DIR     = path.join(__dirname, 'logs');
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
 function readStatus() {
   try {
     return JSON.parse(fs.readFileSync(STATUS_FILE, 'utf8'));
@@ -65,7 +64,6 @@ function statusLabel(s) {
   }
 }
 
-// ── Baca config jam kirim dari kirim_jadwal.js ────────────────────────────
 function readCronConfig() {
   try {
     const src = fs.readFileSync(path.join(__dirname, 'kirim_jadwal.js'), 'utf8');
@@ -77,7 +75,6 @@ function readCronConfig() {
   }
 }
 
-// ── Tampilkan last N baris log hari ini ───────────────────────────────────
 function showRecentLogs(n = 10) {
   try {
     const content = fs.readFileSync(todayLogFile(), 'utf8');
@@ -89,7 +86,6 @@ function showRecentLogs(n = 10) {
   }
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
 const st = readStatus();
 const { jam, menit } = readCronConfig();
 
@@ -146,7 +142,6 @@ console.log(`  Log hari ini   : ${todayLogFile()}`);
 console.log(`  Baris log      : ${countTodayLogs()} baris`);
 console.log(SEP + '\n');
 
-// Tampilkan 12 log terakhir hari ini
 console.log('  -- 12 log terbaru hari ini --');
 showRecentLogs(12);
 console.log('');
