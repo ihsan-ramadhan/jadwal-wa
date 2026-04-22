@@ -21,7 +21,7 @@ const PATH_EXCEL = "./jadwal.xlsx";
 const GROUP_ID_ASRAMA = process.env.GROUP_ID_ASRAMA || "XXXXXXXXXX@g.us";
 const GROUP_ID_SQUAD  = process.env.GROUP_ID_SQUAD || "XXXXXXXXXX@g.us";
 
-const JAM_KIRIM   = 20;
+const JAM_KIRIM   = 21;
 const MENIT_KIRIM = 0;
 
 const SHEET_JADWAL        = "Jadwal";
@@ -147,46 +147,88 @@ function bacaPosisiJumatan(wb) {
   return posisi;
 }
 
-function generateJumat(semuaNama, listImam, posisiJumatan) {
+const RIWAYAT_FILE = path.join(__dirname, "riwayat_jumat.json");
+
+function getRiwayatJumat(semuaNamaSekarang) {
+  let urutan = [];
+  try {
+    if (fs.existsSync(RIWAYAT_FILE)) {
+      urutan = JSON.parse(fs.readFileSync(RIWAYAT_FILE, "utf8"));
+    }
+  } catch (e) {
+    logger.warn("Gagal baca riwayat jumat:", e.message);
+  }
+
+  let baru = urutan.filter(nama => semuaNamaSekarang.includes(nama));
+  for (let nama of semuaNamaSekarang) {
+    if (!baru.includes(nama)) baru.push(nama);
+  }
+  if (urutan.length === 0) {
+    baru = baru.sort(() => 0.5 - Math.random());
+  }
+  return baru;
+}
+
+function saveRiwayatJumat(urutanBaru) {
+  try {
+    fs.writeFileSync(RIWAYAT_FILE, JSON.stringify(urutanBaru, null, 2), "utf8");
+  } catch (e) {
+    logger.warn("Gagal simpan riwayat jumat:", e.message);
+  }
+}
+
+function generateJumat(urutanSekarang, listImam, posisiJumatan) {
+  const muadzin = urutanSekarang[0] || "-";
+  const protokol = urutanSekarang[1] || "-";
+
   const sudahBertugas = new Set();
+  if (muadzin !== "-") sudahBertugas.add(muadzin);
+  if (protokol !== "-") sudahBertugas.add(protokol);
 
-  const [[muadzin]] = pilihRandom(semuaNama, 1);
-  sudahBertugas.add(muadzin);
+  const posisiResult = {};
+  let currentIdx = 2;
 
-  let poolProtokol = semuaNama.filter(n => !sudahBertugas.has(n));
-  const [[protokol]] = pilihRandom(poolProtokol, 1);
-  sudahBertugas.add(protokol);
+  for (const pos of posisiJumatan) {
+    let slotCount = pos.jumlah;
+    let assigned = [];
+
+    if (pos.nama.toLowerCase() === "lantai utama") {
+      if (muadzin !== "-") assigned.push(muadzin);
+      if (protokol !== "-") assigned.push(protokol);
+      slotCount -= 2;
+      if (slotCount < 0) slotCount = 0;
+    }
+
+    for (let i = 0; i < slotCount; i++) {
+      if (currentIdx < urutanSekarang.length) {
+        assigned.push(urutanSekarang[currentIdx]);
+        currentIdx++;
+      }
+    }
+    posisiResult[pos.nama] = assigned;
+  }
 
   const waktusAdzan = ["Shubuh", "Ashar", "Maghrib", "Isya'"];
   const adzanResult = {};
-  let poolAdzan = semuaNama.filter(n => !sudahBertugas.has(n));
+  let poolAdzan = urutanSekarang.filter(n => !sudahBertugas.has(n));
+  
   for (const waktu of waktusAdzan) {
+    if (poolAdzan.length === 0) poolAdzan = urutanSekarang.filter(n => !sudahBertugas.has(n));
     const [[pilihan], sisa] = pilihRandom(poolAdzan, 1);
     adzanResult[waktu] = pilihan;
     poolAdzan = sisa;
-    sudahBertugas.add(pilihan);
+    if (pilihan) sudahBertugas.add(pilihan);
   }
 
   let poolImam = listImam.filter(n => !sudahBertugas.has(n));
+  if (poolImam.length === 0) poolImam = listImam;
+  
   const [[imamMaghrib], poolImam2] = pilihRandom(poolImam, 1);
-  sudahBertugas.add(imamMaghrib);
-  const [[imamIsya]] = pilihRandom(poolImam2, 1);
-  sudahBertugas.add(imamIsya);
-
-  const posisiResult = {};
-  let poolPosisi = semuaNama.filter(n => n !== muadzin && n !== protokol);
-
-  for (const pos of posisiJumatan) {
-    if (pos.nama === "Lantai Utama") {
-      const [[extra]] = pilihRandom(poolPosisi, 1);
-      poolPosisi = poolPosisi.filter(n => n !== extra);
-      posisiResult[pos.nama] = [muadzin, protokol, extra];
-    } else {
-      const [terpilih, sisa] = pilihRandom(poolPosisi, pos.jumlah);
-      posisiResult[pos.nama] = terpilih;
-      poolPosisi = sisa;
-    }
-  }
+  if (imamMaghrib) sudahBertugas.add(imamMaghrib);
+  
+  let finalPoolImam = poolImam2.length > 0 ? poolImam2 : listImam.filter(n => n !== imamMaghrib);
+  const [[imamIsya]] = pilihRandom(finalPoolImam, 1);
+  if (imamIsya) sudahBertugas.add(imamIsya);
 
   return { muadzin, protokol, adzanResult, imamMaghrib, imamIsya, posisiResult };
 }
@@ -236,11 +278,10 @@ Mohon kehadirannya tepat waktu, bila ada yang berhalangan boleh konfirmasi. Teri
   return { text, mentions };
 }
 
-function buatPesanJumat(kontak, tanggalBesok, semuaNama, listImam, posisiJumatan) {
+function buatPesanJumat(kontak, tanggalBesok, jumatData) {
   const resolve = (nama) => resolveContact(kontak, nama);
 
-  const { muadzin, protokol, adzanResult, imamMaghrib, imamIsya, posisiResult } =
-    generateJumat(semuaNama, listImam, posisiJumatan);
+  const { muadzin, protokol, adzanResult, imamMaghrib, imamIsya, posisiResult } = jumatData;
 
   const rMuadzin      = resolve(muadzin);
   const rProtokol     = resolve(protokol);
@@ -306,9 +347,16 @@ async function kirimJadwal(sock) {
 
     logger.info(`Jadwal untuk: ${getNamaHari(besok)}, ${formatTanggal(besok)} (tipe: ${isJumat ? "Jumat" : "harian"})`);
 
+    let jumatData = null;
+    let urutanBesok = null;
+    if (isJumat) {
+      urutanBesok = getRiwayatJumat(semuaNama);
+      jumatData = generateJumat(urutanBesok, listImam, posisiJumatan);
+    }
+
     function getPesan(kontak) {
       return isJumat
-        ? buatPesanJumat(kontak, besok, semuaNama, listImam, posisiJumatan)
+        ? buatPesanJumat(kontak, besok, jumatData)
         : buatPesanHarian(jadwal, kontak, besok);
     }
 
@@ -330,6 +378,14 @@ async function kirimJadwal(sock) {
       sentGroups.push("LUAR ASRAMA");
     } else {
       logger.skip("Grup LUAR ASRAMA dilewati (ID belum diisi)");
+    }
+
+    if (isJumat && sentGroups.length > 0 && urutanBesok) {
+       let shifted = [...urutanBesok];
+       if (shifted.length > 2) {
+         shifted.push(shifted.shift(), shifted.shift());
+       }
+       saveRiwayatJumat(shifted);
     }
 
     writeStatus({
@@ -375,6 +431,7 @@ async function connectToWhatsApp() {
     printQRInTerminal: false,
     logger: pino({ level: 'silent' }),
     browser: Browsers.macOS('Desktop'),
+    markOnlineOnConnect: false,
   });
 
   sock.ev.on('creds.update', saveCreds);
