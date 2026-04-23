@@ -465,6 +465,9 @@ async function connectToWhatsApp() {
     } else if (connection === 'open') {
       reconnectCount = 0;
       logger.ok("WhatsApp berhasil terhubung (Baileys)!");
+      
+      sock.sendPresenceUpdate('unavailable');
+      
       writeStatus({ wa_status: "connected", last_connected: new Date().toISOString() });
 
       if (process.argv.some(arg => arg.includes("--list-groups"))) {
