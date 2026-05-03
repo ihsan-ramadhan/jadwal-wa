@@ -430,8 +430,11 @@ async function connectToWhatsApp() {
     auth: state,
     printQRInTerminal: false,
     logger: pino({ level: 'silent' }),
-    browser: Browsers.macOS('Desktop'),
+    browser: Browsers.ubuntu('Chrome'),
     markOnlineOnConnect: false,
+    syncFullHistory: false,
+    shouldSyncHistoryMessage: () => false,
+    keepAliveIntervalMs: 30_000,
   });
 
   sock.ev.on('creds.update', saveCreds);
@@ -446,27 +449,42 @@ async function connectToWhatsApp() {
     }
 
     if (connection === 'close') {
-      const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      logger.warn('WhatsApp terputus akibat:', lastDisconnect.error?.message || 'Unknown', ', Reconnect:', shouldReconnect);
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const reason     = lastDisconnect?.error?.message || 'Unknown';
+      const isLoggedOut    = statusCode === DisconnectReason.loggedOut;
+      const isConflict     = statusCode === DisconnectReason.conflict;
+      const isReplaced     = statusCode === DisconnectReason.connectionReplaced;
+      const isRestartNeeded = statusCode === DisconnectReason.restartRequired;
+
+      logger.warn(`WhatsApp terputus [${statusCode}]: ${reason}`);
       writeStatus({ wa_status: "disconnected", last_disconnected: new Date().toISOString() });
-      
-      if (shouldReconnect) {
+
+      if (isLoggedOut) {
+        logger.error("Sesi ter-logout. Hapus folder 'auth_info_baileys' dan scan QR lagi.");
+        if (process.argv.includes("--test")) process.exit(1);
+      } else if (isConflict || isReplaced) {
+        logger.error(`Sesi konflik/digantikan (${statusCode}). Restart proses untuk sinkronisasi ulang.`);
+        process.exit(1);
+      } else if (isRestartNeeded) {
+        logger.warn("Server WA minta restart. Reconnecting sekarang...");
+        reconnectCount = 0;
+        setTimeout(connectToWhatsApp, 3000);
+      } else {
         if (reconnectCount < MAX_RECONNECT) {
           reconnectCount++;
-          setTimeout(connectToWhatsApp, 5000 * reconnectCount);
+          const delay = 5000 * reconnectCount;
+          logger.warn(`Reconnect ke-${reconnectCount}/${MAX_RECONNECT} dalam ${delay / 1000}s...`);
+          setTimeout(connectToWhatsApp, delay);
         } else {
           logger.error(`Batas reconnect (${MAX_RECONNECT}x) tercapai. Exiting process.`);
           process.exit(1);
         }
-      } else {
-        logger.error("Sesi ter-logout. Hapus folder 'auth_info_baileys' dan scan QR lagi.");
-        if (process.argv.includes("--test")) process.exit(1);
       }
     } else if (connection === 'open') {
       reconnectCount = 0;
       logger.ok("WhatsApp berhasil terhubung (Baileys)!");
       
-      sock.sendPresenceUpdate('unavailable');
+      sock.sendPresenceUpdate('unavailable').catch(() => {});
       
       writeStatus({ wa_status: "connected", last_connected: new Date().toISOString() });
 
@@ -511,10 +529,33 @@ logger.info("Tips: node kirim_jadwal.js --test");
 connectToWhatsApp();
 
 cron.schedule(
-  `0 ${MENIT_KIRIM} ${JAM_KIRIM} * * *`,
+  `* * * * *`,
   () => {
-    logger.cron(`Cron triggered — jam ${JAM_KIRIM}:${String(MENIT_KIRIM).padStart(2,"0")} WIB`);
-    if(sock) kirimJadwal(sock);
+    const now = new Date();
+    const jam = now.getHours();
+    const menit = now.getMinutes();
+
+    if (jam > JAM_KIRIM || (jam === JAM_KIRIM && menit >= MENIT_KIRIM)) {
+      const status = readStatus();
+      const lastSend = status?.last_send?.time;
+      let sudahKirim = false;
+
+      if (lastSend) {
+        const lastDate = new Date(lastSend);
+        if (
+          lastDate.getFullYear() === now.getFullYear() &&
+          lastDate.getMonth() === now.getMonth() &&
+          lastDate.getDate() === now.getDate()
+        ) {
+          sudahKirim = true;
+        }
+      }
+
+      if (!sudahKirim) {
+        logger.cron(`Mendeteksi jadwal belum terkirim hari ini. Mengeksekusi pengiriman susulan...`);
+        if (sock) kirimJadwal(sock);
+      }
+    }
   },
   { timezone: "Asia/Jakarta" }
 );
