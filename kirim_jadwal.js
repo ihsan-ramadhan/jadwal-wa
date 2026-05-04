@@ -333,6 +333,8 @@ Mohon kesiapannya ya. Terima kasih! 🙏`;
 }
 
 async function kirimJadwal(sock) {
+  await sock.sendPresenceUpdate('available').catch(() => {});
+  await new Promise(r => setTimeout(r, 2000));
   const sentGroups = [];
   const sendTime   = new Date().toISOString();
 
@@ -398,6 +400,7 @@ async function kirimJadwal(sock) {
       },
     });
 
+    await sock.sendPresenceUpdate('unavailable').catch(() => {});
     logger.ok(`Pengiriman selesai. Grup terkirim: ${sentGroups.join(", ") || "tidak ada"}`);
 
   } catch (err) {
@@ -434,7 +437,7 @@ async function connectToWhatsApp() {
     markOnlineOnConnect: false,
     syncFullHistory: false,
     shouldSyncHistoryMessage: () => false,
-    keepAliveIntervalMs: 30_000,
+    keepAliveIntervalMs: 60_000,
   });
 
   sock.ev.on('creds.update', saveCreds);
@@ -485,6 +488,10 @@ async function connectToWhatsApp() {
       logger.ok("WhatsApp berhasil terhubung (Baileys)!");
       
       sock.sendPresenceUpdate('unavailable').catch(() => {});
+
+      setInterval(() => {
+        sock.sendPresenceUpdate('unavailable').catch(() => {});
+      }, 5 * 60 * 1000);
       
       writeStatus({ wa_status: "connected", last_connected: new Date().toISOString() });
 

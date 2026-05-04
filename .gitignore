@@ -4,8 +4,9 @@ node_modules/
 # WhatsApp session Baileys
 auth_info_baileys/
 
-# Data jadwal — berisi nama-nama pribadi
+# Data jadwal - berisi nama-nama pribadi
 jadwal.xlsx
+riwayat_jumat.json
 
 # Log & status runtime
 logs/
