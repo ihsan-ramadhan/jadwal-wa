@@ -33,6 +33,8 @@ const MAX_RECONNECT = 5;
 
 const STATUS_FILE = path.join(__dirname, "status.json");
 
+let isSending = false;
+
 function readStatus() {
   try { return JSON.parse(fs.readFileSync(STATUS_FILE, "utf8")); } catch { return {}; }
 }
@@ -148,6 +150,7 @@ function bacaPosisiJumatan(wb) {
 }
 
 const RIWAYAT_FILE = path.join(__dirname, "riwayat_jumat.json");
+const BLACKLIST_JUMAT = ["Hanif", "Rifal"];
 
 function getRiwayatJumat(semuaNamaSekarang) {
   let urutan = [];
@@ -159,8 +162,9 @@ function getRiwayatJumat(semuaNamaSekarang) {
     logger.warn("Gagal baca riwayat jumat:", e.message);
   }
 
-  let baru = urutan.filter(nama => semuaNamaSekarang.includes(nama));
-  for (let nama of semuaNamaSekarang) {
+  const filteredNamaSekarang = semuaNamaSekarang.filter(nama => !BLACKLIST_JUMAT.includes(nama));
+  let baru = urutan.filter(nama => filteredNamaSekarang.includes(nama) && !BLACKLIST_JUMAT.includes(nama));
+  for (let nama of filteredNamaSekarang) {
     if (!baru.includes(nama)) baru.push(nama);
   }
   if (urutan.length === 0) {
@@ -332,79 +336,131 @@ Mohon kesiapannya ya. Terima kasih! 🙏`;
   return { text, mentions };
 }
 
-async function kirimJadwal(sock) {
-  await sock.sendPresenceUpdate('available').catch(() => {});
-  await new Promise(r => setTimeout(r, 2000));
+async function waitForSocket(maxWaitMs = 60000) {
+  const start = Date.now();
+  let lastLogTime = 0;
+  while (Date.now() - start < maxWaitMs) {
+    const status = readStatus().wa_status;
+    if (sock && sock.user && status === "connected") {
+      try {
+        await sock.sendPresenceUpdate('available');
+        return true;
+      } catch (e) {
+        const now = Date.now();
+        if (now - lastLogTime > 10000) {
+          logger.warn("Socket exists but ping failed, waiting for reconnection...");
+          lastLogTime = now;
+        }
+      }
+    } else if (status === "disconnected") {
+      const now = Date.now();
+      if (now - lastLogTime > 10000) {
+        logger.warn(`WA sedang reconnecting... menunggu (${Math.round((Date.now() - start) / 1000)}s)`);
+        lastLogTime = now;
+      }
+    }
+    await new Promise(r => setTimeout(r, 3000));
+  }
+  return false;
+}
+
+async function kirimJadwal() {
+  if (isSending) {
+    logger.warn("Pengiriman jadwal sedang berjalan, mengabaikan request baru.");
+    return;
+  }
+
+  isSending = true;
   const sentGroups = [];
   const sendTime   = new Date().toISOString();
+  let retryCount   = 0;
+  const MAX_RETRIES = 3;
 
   try {
     logger.cron(`Memulai pengiriman jadwal... (${new Date().toLocaleString("id-ID")})`);
 
-    const { jadwal, kontakAsrama, kontakLuar, posisiJumatan, semuaNama, listImam } = bacaExcel();
+    while (retryCount < MAX_RETRIES) {
+      const isReady = await waitForSocket();
+      if (!isReady) {
+        logger.error(`Gagal mendapatkan koneksi WA yang stabil setelah menunggu (${retryCount + 1}/${MAX_RETRIES})`);
+        retryCount++;
+        if (retryCount < MAX_RETRIES) continue;
+        throw new Error("Connection Timeout/Closed");
+      }
 
-    const besok   = new Date();
-    besok.setDate(besok.getDate() + 1);
-    const isJumat = getNamaHari(besok) === "Jum'at";
+      try {
+        const { jadwal, kontakAsrama, kontakLuar, posisiJumatan, semuaNama, listImam } = bacaExcel();
 
-    logger.info(`Jadwal untuk: ${getNamaHari(besok)}, ${formatTanggal(besok)} (tipe: ${isJumat ? "Jumat" : "harian"})`);
+        const besok   = new Date();
+        besok.setDate(besok.getDate() + 1);
+        const isJumat = getNamaHari(besok) === "Jum'at";
 
-    let jumatData = null;
-    let urutanBesok = null;
-    if (isJumat) {
-      urutanBesok = getRiwayatJumat(semuaNama);
-      jumatData = generateJumat(urutanBesok, listImam, posisiJumatan);
+        logger.info(`Jadwal untuk: ${getNamaHari(besok)}, ${formatTanggal(besok)} (tipe: ${isJumat ? "Jumat" : "harian"})`);
+
+        let jumatData = null;
+        let urutanBesok = null;
+        if (isJumat) {
+          urutanBesok = getRiwayatJumat(semuaNama);
+          jumatData = generateJumat(urutanBesok, listImam, posisiJumatan);
+        }
+
+        function getPesan(kontak) {
+          return isJumat
+            ? buatPesanJumat(kontak, besok, jumatData)
+            : buatPesanHarian(jadwal, kontak, besok);
+        }
+
+        if (GROUP_ID_ASRAMA && GROUP_ID_ASRAMA !== "XXXXXXXXXX@g.us") {
+          const pesan = getPesan(kontakAsrama);
+          logger.info("Preview pesan ASRAMA:\n" + pesan.text);
+          await sock.sendMessage(GROUP_ID_ASRAMA, { text: pesan.text, mentions: pesan.mentions });
+          logger.ok("Pesan berhasil dikirim ke grup ASRAMA");
+          sentGroups.push("ASRAMA");
+        }
+
+        if (GROUP_ID_SQUAD && GROUP_ID_SQUAD !== "XXXXXXXXXX@g.us") {
+          const pesan = getPesan(kontakLuar);
+          logger.info("Preview pesan LUAR ASRAMA:\n" + pesan.text);
+          await sock.sendMessage(GROUP_ID_SQUAD, { text: pesan.text, mentions: pesan.mentions });
+          logger.ok("Pesan berhasil dikirim ke grup LUAR ASRAMA");
+          sentGroups.push("LUAR ASRAMA");
+        }
+
+        if (isJumat && sentGroups.length > 0 && urutanBesok) {
+           let shifted = [...urutanBesok];
+           if (shifted.length > 2) {
+             shifted.push(shifted.shift(), shifted.shift());
+           }
+           saveRiwayatJumat(shifted);
+        }
+
+        writeStatus({
+          last_send: {
+            time:   sendTime,
+            type:   isJumat ? "jumat" : "harian",
+            groups: sentGroups,
+            status: "ok",
+            error:  null,
+          },
+        });
+
+        await sock.sendPresenceUpdate('unavailable').catch(() => {});
+        logger.ok(`Pengiriman selesai. Grup terkirim: ${sentGroups.join(", ") || "tidak ada"}`);
+        break;
+
+      } catch (err) {
+        if (err.message.includes("Connection Closed") || err.message.includes("Timed Out")) {
+          retryCount++;
+          logger.warn(`Terdeteksi error koneksi (${err.message}). Mencoba lagi ke-${retryCount}/${MAX_RETRIES}...`);
+          await new Promise(r => setTimeout(r, 5000));
+        } else {
+          throw err;
+        }
+      }
     }
-
-    function getPesan(kontak) {
-      return isJumat
-        ? buatPesanJumat(kontak, besok, jumatData)
-        : buatPesanHarian(jadwal, kontak, besok);
-    }
-
-    if (GROUP_ID_ASRAMA && GROUP_ID_ASRAMA !== "XXXXXXXXXX@g.us") {
-      const pesan = getPesan(kontakAsrama);
-      logger.info("Preview pesan ASRAMA:\n" + pesan.text);
-      await sock.sendMessage(GROUP_ID_ASRAMA, { text: pesan.text, mentions: pesan.mentions });
-      logger.ok("Pesan berhasil dikirim ke grup ASRAMA");
-      sentGroups.push("ASRAMA");
-    } else {
-      logger.skip("Grup ASRAMA dilewati (ID belum diisi)");
-    }
-
-    if (GROUP_ID_SQUAD && GROUP_ID_SQUAD !== "XXXXXXXXXX@g.us") {
-      const pesan = getPesan(kontakLuar);
-      logger.info("Preview pesan LUAR ASRAMA:\n" + pesan.text);
-      await sock.sendMessage(GROUP_ID_SQUAD, { text: pesan.text, mentions: pesan.mentions });
-      logger.ok("Pesan berhasil dikirim ke grup LUAR ASRAMA");
-      sentGroups.push("LUAR ASRAMA");
-    } else {
-      logger.skip("Grup LUAR ASRAMA dilewati (ID belum diisi)");
-    }
-
-    if (isJumat && sentGroups.length > 0 && urutanBesok) {
-       let shifted = [...urutanBesok];
-       if (shifted.length > 2) {
-         shifted.push(shifted.shift(), shifted.shift());
-       }
-       saveRiwayatJumat(shifted);
-    }
-
-    writeStatus({
-      last_send: {
-        time:   sendTime,
-        type:   isJumat ? "jumat" : "harian",
-        groups: sentGroups,
-        status: "ok",
-        error:  null,
-      },
-    });
-
-    await sock.sendPresenceUpdate('unavailable').catch(() => {});
-    logger.ok(`Pengiriman selesai. Grup terkirim: ${sentGroups.join(", ") || "tidak ada"}`);
 
   } catch (err) {
-    logger.error("Gagal kirim jadwal:", err.message);
+    logger.error("Gagal kirim jadwal setelah retries:", err.message);
     logger.error(err.stack);
 
     writeStatus({
@@ -416,11 +472,30 @@ async function kirimJadwal(sock) {
         error:  err.message,
       },
     });
+  } finally {
+    isSending = false;
   }
 }
 
 let reconnectCount = 0;
 let sock;
+let keepAliveInterval = null;
+const groupMetadataCache = new Map();
+
+async function refreshGroupMetadataCache() {
+  const ids = [GROUP_ID_ASRAMA, GROUP_ID_SQUAD].filter(
+    id => id && id !== "XXXXXXXXXX@g.us"
+  );
+  for (const id of ids) {
+    try {
+      const meta = await sock.groupMetadata(id);
+      groupMetadataCache.set(id, meta);
+      logger.info(`Cache metadata grup berhasil: ${meta.subject}`);
+    } catch (e) {
+      logger.warn(`Gagal cache metadata grup ${id}: ${e.message}`);
+    }
+  }
+}
 
 async function connectToWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
@@ -437,7 +512,8 @@ async function connectToWhatsApp() {
     markOnlineOnConnect: false,
     syncFullHistory: false,
     shouldSyncHistoryMessage: () => false,
-    keepAliveIntervalMs: 60_000,
+    keepAliveIntervalMs: 25_000,
+    cachedGroupMetadata: async (jid) => groupMetadataCache.get(jid),
   });
 
   sock.ev.on('creds.update', saveCreds);
@@ -489,11 +565,18 @@ async function connectToWhatsApp() {
       
       sock.sendPresenceUpdate('unavailable').catch(() => {});
 
-      setInterval(() => {
-        sock.sendPresenceUpdate('unavailable').catch(() => {});
-      }, 5 * 60 * 1000);
+      if (keepAliveInterval) clearInterval(keepAliveInterval);
+      keepAliveInterval = setInterval(() => {
+        if (sock && readStatus().wa_status === "connected") {
+          sock.sendPresenceUpdate('unavailable').catch(() => {
+             logger.warn("Ping interval gagal, kemungkinan koneksi tidak stabil.");
+          });
+        }
+      }, 2 * 60 * 1000);
       
       writeStatus({ wa_status: "connected", last_connected: new Date().toISOString() });
+
+      setTimeout(refreshGroupMetadataCache, 3000);
 
       if (process.argv.some(arg => arg.includes("--list-groups"))) {
         logger.info("Mengambil daftar grup...");
@@ -515,7 +598,7 @@ async function connectToWhatsApp() {
         logger.info("Jalan di mode --test (GitHub Actions mode)..");
         logger.info("Menunggu sebentar untuk sinkronisasi enkripsi Multi-Device...");
         setTimeout(() => {
-          kirimJadwal(sock).then(async () => {
+          kirimJadwal().then(async () => {
              logger.info("Pengiriman tes selesai, exit 0.");
              await new Promise(r => setTimeout(r, 10000));
              process.exit(0);
@@ -549,10 +632,12 @@ cron.schedule(
 
       if (lastSend) {
         const lastDate = new Date(lastSend);
+        const lastStatus = status?.last_send?.status;
         if (
           lastDate.getFullYear() === now.getFullYear() &&
           lastDate.getMonth() === now.getMonth() &&
-          lastDate.getDate() === now.getDate()
+          lastDate.getDate() === now.getDate() &&
+          lastStatus === 'ok'
         ) {
           sudahKirim = true;
         }
@@ -560,7 +645,7 @@ cron.schedule(
 
       if (!sudahKirim) {
         logger.cron(`Mendeteksi jadwal belum terkirim hari ini. Mengeksekusi pengiriman susulan...`);
-        if (sock) kirimJadwal(sock);
+        kirimJadwal();
       }
     }
   },
